@@ -100,6 +100,8 @@ def find_flat_num(breath):
 
 def cal_slope_dyna(breath):
     # calculate slope for DCA_0.9 == 1
+    # the slope of pressure during fbit ~ pbit[:-4] if DCA_9 = 1
+    # if num of data points >=6 get rid of last 4, ow use all
     meta = get_production_breath_meta(breath)
     meta_exp = get_experimental_breath_meta(breath)
     fbit = meta[6] 
@@ -117,22 +119,26 @@ def cal_slope_dyna(breath):
     
     if f_pbit <= 0.9 :
         
-        #fbit=DCA_detect[DCA_detect.breath_id==br_id].fbit.values[0]
-        #pbit=DCA_detect[DCA_detect.breath_id==br_id].pbit.values[0]
-        
         pressure_slope = df_t_flow_pres[df_t_flow_pres.t.between(fbit,pbit)]
-        x = np.array([pressure_slope.t]).reshape((-1, 1))
-        y = pressure_slope.pressure
-        model = LinearRegression()
-        model.fit(x, y)
-        slope = model.coef_[0]
+        if pressure_slope.shape[0]>=6 :
+            x = np.array([pressure_slope.t[:-4]]).reshape((-1, 1))
+            y = pressure_slope.pressure[:-4]
+            model = LinearRegression()
+            model.fit(x, y)
+            slope = model.coef_[0]
+        else :
+            x = np.array([pressure_slope.t]).reshape((-1, 1))
+            y = pressure_slope.pressure
+            model = LinearRegression()
+            model.fit(x, y)
+            slope = model.coef_[0]
 
     else:
         slope = 0 
     return round(slope,2)
 
 def cal_slope_static(breath):
-    # calculate slope for flat_num >=7 (potential  static DCA)
+    # calculate slope for pressure if flat_num >=7 (potential  static DCA)
     flat_num = find_flat_num(breath)
     br_id = breath["rel_bn"]
    
@@ -156,7 +162,8 @@ def cal_slope_static(breath):
 
 
 def median_flow_dyna(breath):
-    # calculate slope for DCA_0.9 == 1
+    # calculate MEDIAN OF FOLW IF DCA_0.9 == 1
+    # if num of data points >=6 get rid of last 4, ow use all
     meta = get_production_breath_meta(breath)
     meta_exp = get_experimental_breath_meta(breath)
     fbit = meta[6] 
@@ -174,11 +181,22 @@ def median_flow_dyna(breath):
     
     if f_pbit <= 0.9 :
         pressure_slope = df_t_flow_pres[df_t_flow_pres.t.between(fbit,pbit)]
+        if pressure_slope.shape[0]>=6 :
         #x = np.array([pressure_slope.t]).reshape((-1, 1))
-        y = pressure_slope.flow
-        median_flow = statistics.median(y)
-
+            y = pressure_slope.flow[:-4]
+            median_flow = statistics.median(y)
+        else: 
+            y = pressure_slope.flow
+            median_flow = statistics.median(y)
 
     else:
         median_flow = 0 
     return round(median_flow,2)
+
+def start_zero_time(breath):
+    # return start point of zero phase
+    if find_flat_df(breath).empty:
+        start_zero = 0
+    else:
+        start_zero = find_flat_df(breath).t.iloc[0]
+    return start_zero
